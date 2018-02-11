@@ -87,9 +87,27 @@ create table if not exists power (
 create view if not exists power_by_day as
 	select
 		MeterID,
-		strftime("%Y-%m-%d", Time) as Time,
+		datetime(Time, 'localtime'),
 		max(Usage) as Usage
 	from
 		Power
-	group by MeterID, strftime("%Y-%m-%d", Time);
+	group by 1, strftime("%Y-%m-%d", Time, 'localtime');
+
+create view if not exists power_by_month as
+	select
+		MeterID,
+		datetime(Time, 'localtime'),
+		max(Usage) as Usage
+	from
+		Power
+	group by 1, strftime("%Y-%m", Time, 'localtime');
+
+create view if not exists power_by_hour as
+	select
+		MeterID,
+		datetime(Time, 'localtime'),
+		max(Usage) as Usage
+	from
+		Power
+	group by 1, strftime("%Y-%m-%dT%H", Time, 'localtime');
 `
