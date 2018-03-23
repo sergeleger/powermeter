@@ -2,13 +2,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/sergeleger/powermeter/power"
 	"github.com/urfave/cli"
 )
@@ -48,8 +48,9 @@ func collectorAction(ctx *cli.Context) error {
 	sc := bufio.NewScanner(os.Stdin)
 	for sc.Scan() {
 		var usage power.Usage
-		if err = usage.UnmarshalJSON(sc.Bytes()); err != nil {
+		if err = usage.UnmarshalJSON(removeNullBytes(sc.Bytes())); err != nil {
 			log.Printf("could not marshall entry: %v", err)
+			continue
 		}
 
 		st.Exec(usage.MeterID, usage.Time, usage.Consumption)
@@ -59,6 +60,16 @@ func collectorAction(ctx *cli.Context) error {
 	st.Close()
 
 	return nil
+}
+
+// removeNullBytes removes prefixes containing only null bytes from the buffer.
+func removeNullBytes(buf []byte) []byte {
+	i := bytes.LastIndexByte(buf, 0)
+	if i == -1 {
+		return buf
+	}
+
+	return buf[i+1:]
 }
 
 // openDatabase creates the database and prepares the database object.
@@ -87,7 +98,7 @@ create table if not exists power (
 create view if not exists power_by_day as
 	select
 		MeterID,
-		datetime(Time, 'localtime'),
+		Time,
 		max(Usage) as Usage
 	from
 		Power
@@ -96,7 +107,7 @@ create view if not exists power_by_day as
 create view if not exists power_by_month as
 	select
 		MeterID,
-		datetime(Time, 'localtime'),
+		Time,
 		max(Usage) as Usage
 	from
 		Power
@@ -105,7 +116,7 @@ create view if not exists power_by_month as
 create view if not exists power_by_hour as
 	select
 		MeterID,
-		datetime(Time, 'localtime'),
+		Time,
 		max(Usage) as Usage
 	from
 		Power

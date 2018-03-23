@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/urfave/cli"
 )
 
@@ -13,6 +14,7 @@ func main() {
 	app.Version = "1.0.0"
 	app.Commands = []cli.Command{
 		CollectorCommand,
+		GraphCommand,
 	}
 
 	err := app.Run(os.Args)
