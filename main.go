@@ -15,6 +15,7 @@ func main() {
 	app.Commands = []cli.Command{
 		CollectorCommand,
 		GraphCommand,
+		SinkCommand,
 	}
 
 	err := app.Run(os.Args)
