@@ -1,0 +1,13 @@
+[Unit]
+Description=Software defined radio service
+Documentation="https://osmocom.org/projects/rtl-sdr/wiki/Rtl-sdr"
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/rtl_tcp
+Type=Simple
+Restart=on-failure
+User=legers
+
+[Install]
+WantedBy=multi-user.target

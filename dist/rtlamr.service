@@ -1,0 +1,14 @@
+[Unit]
+Description=Service to capture power usage from rtl_tcp
+Documentation="https://github.com/bemasher/rtlamr"
+After=rtl-tcp.service
+Wants=rtl-tcp.service
+
+[Service]
+ExecStart=/bin/bash -c "/home/legers/bin/rtlamr -unique=true -msgtype=scm -format=json >> /home/legers/test.json"
+Type=Simple
+Restart=on-failure
+User=legers
+
+[Install]
+WantedBy=multi-user.target
