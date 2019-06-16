@@ -16,6 +16,12 @@ func main() {
 		CollectorCommand,
 		GraphCommand,
 		SinkCommand,
+		HTTPCommand,
+		InfluxCommand,
+	}
+
+	app.Flags = []cli.Flag{
+		cli.StringFlag{Name: "cache", Value: "cache.gob", Usage: "power consumption cache"},
 	}
 
 	err := app.Run(os.Args)

@@ -1,8 +1,10 @@
 package power
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -11,6 +13,23 @@ type Usage struct {
 	Time        time.Time
 	MeterID     int
 	Consumption float64
+}
+
+// Read reads all power reading from the reader.
+func Read(r io.Reader) ([]*Usage, error) {
+	results := make([]*Usage, 0)
+
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		var usage Usage
+		if err := usage.UnmarshalJSON(sc.Bytes()); err != nil {
+			return nil, err
+		}
+
+		results = append(results, &usage)
+	}
+
+	return results, nil
 }
 
 // UnmarshalJSON implements json.Unmarshaler and decodes the SCM protocol.
@@ -34,4 +53,18 @@ func (usage *Usage) UnmarshalJSON(buf []byte) (err error) {
 	usage.MeterID = scmEncoding.Message.ID
 	usage.Consumption = scmEncoding.Message.Consumption
 	return nil
+}
+
+// MarshalJSON implementes json.Marshaler
+func (usage *Usage) MarshalJSON() ([]byte, error) {
+	var jsonEncoding struct {
+		Time        int64   `json:"time"`
+		MeterID     int     `json:"meter"`
+		Consumption float64 `json:"consumption"`
+	}
+
+	jsonEncoding.Time = usage.Time.Unix()
+	jsonEncoding.MeterID = usage.MeterID
+	jsonEncoding.Consumption = usage.Consumption
+	return json.Marshal(jsonEncoding)
 }
