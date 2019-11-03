@@ -3,9 +3,12 @@ package power
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"io"
+	"log"
+	"sort"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // Usage reflects the cummulative power usage at time Usage.Time
@@ -16,20 +19,23 @@ type Usage struct {
 }
 
 // Read reads all power reading from the reader.
-func Read(r io.Reader) ([]*Usage, error) {
-	results := make([]*Usage, 0)
+func Read(dest []*Usage, r io.Reader) ([]*Usage, error) {
+	if dest == nil {
+		dest = make([]*Usage, 0)
+	}
 
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		var usage Usage
 		if err := usage.UnmarshalJSON(sc.Bytes()); err != nil {
-			return nil, err
+			log.Printf("error: decoding entry: %v", err)
+			continue
 		}
 
-		results = append(results, &usage)
+		dest = append(dest, &usage)
 	}
 
-	return results, nil
+	return dest, errors.Wrap(sc.Err(), "error occured while reading")
 }
 
 // UnmarshalJSON implements json.Unmarshaler and decodes the SCM protocol.
@@ -43,11 +49,11 @@ func (usage *Usage) UnmarshalJSON(buf []byte) (err error) {
 	}
 
 	if err = json.Unmarshal(buf, &scmEncoding); err != nil {
-		return fmt.Errorf("error: could not decode SVM: %v", err)
+		return errors.Wrap(err, " could not decode SVM")
 	}
 
 	if usage.Time, err = time.Parse("2006-01-02T15:04:05.999999999-07:00", scmEncoding.Time); err != nil {
-		return fmt.Errorf("error: could not decode SVM time: %v", err)
+		return errors.Wrap(err, "could not decode SVM time")
 	}
 
 	usage.MeterID = scmEncoding.Message.ID
@@ -55,16 +61,13 @@ func (usage *Usage) UnmarshalJSON(buf []byte) (err error) {
 	return nil
 }
 
-// MarshalJSON implementes json.Marshaler
-func (usage *Usage) MarshalJSON() ([]byte, error) {
-	var jsonEncoding struct {
-		Time        int64   `json:"time"`
-		MeterID     int     `json:"meter"`
-		Consumption float64 `json:"consumption"`
-	}
+// Sort sorts the entries by MeterID/Time
+func Sort(usage []*Usage) {
+	sort.Slice(usage, func(i, j int) bool {
+		if usage[i].MeterID == usage[j].MeterID {
+			return usage[i].Time.Before(usage[j].Time)
+		}
 
-	jsonEncoding.Time = usage.Time.Unix()
-	jsonEncoding.MeterID = usage.MeterID
-	jsonEncoding.Consumption = usage.Consumption
-	return json.Marshal(jsonEncoding)
+		return usage[i].MeterID < usage[j].MeterID
+	})
 }

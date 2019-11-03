@@ -4,17 +4,22 @@ import (
 	"encoding/gob"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sergeleger/powermeter/power"
 )
 
-const Threshold = 1000
-
+// Cache keeps track of the last power consumption seen for each meter.
 type Cache struct {
 	sync.Mutex
+	cache map[int]cacheVal
+}
 
-	cache map[int]float64
+type cacheVal struct {
+	Value float64
+	TS    time.Time
+	Speed float64
 }
 
 // ReadCache reads the cache from the specified file.
@@ -22,10 +27,10 @@ func ReadCache(file string) (*Cache, error) {
 	f, err := os.Open(file)
 
 	cache := &Cache{
-		cache: make(map[int]float64),
+		cache: make(map[int]cacheVal),
 	}
 
-	// if the file does not exist create a new cache object.
+	// if the file does not exist use the empty cache object.
 	if os.IsNotExist(err) {
 		return cache, nil
 	} else if err != nil {
@@ -54,25 +59,44 @@ func WriteCache(file string, cache *Cache) error {
 
 // Update updates the consumption cache for the specified meter ID. Returns the actual usage between
 // the two measurements.
-func (c *Cache) Update(usage power.Usage) float64 {
+func (c *Cache) Update(usage *power.Usage) float64 {
 	c.Lock()
+	defer c.Unlock()
 
 	previous, ok := c.cache[usage.MeterID]
-	c.cache[usage.MeterID] = usage.Consumption
-	c.Unlock()
 
+	// return zero for the first entry of this meter.
 	if !ok {
-		return usage.Consumption
+		c.cache[usage.MeterID] = cacheVal{usage.Consumption, usage.Time, 0}
+		return 0
 	}
 
-	return consumption(previous, usage.Consumption)
+	// Calculate and fix consumption
+	consumption := consumption(previous.Value, usage.Consumption)
+
+	// Calculate speed for sanity check
+	speed := consumption / usage.Time.Sub(previous.TS).Seconds()
+	if (previous.Speed > 0 && speed > previous.Speed*100) || speed > 10 {
+		return 0
+	}
+
+	c.cache[usage.MeterID] = cacheVal{usage.Consumption, usage.Time, speed}
+	return consumption
 }
 
-// consumption returns the amount of power consumption while taking care of overlow values.
+// consumption calculates the amount of power used since the last measurement. Also, corrects the
+// value when it wraps around the meter's limit.
 func consumption(old, new float64) float64 {
-	if new >= old {
-		return new - old
+	consumption := new - old
+	if consumption >= 0 {
+		return consumption
 	}
 
-	return (new + 100000) - old
+	for _, ceiling := range []float64{1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10} {
+		if old < ceiling {
+			return consumption + ceiling
+		}
+	}
+
+	return 0
 }

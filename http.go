@@ -70,7 +70,7 @@ func (data Server) filter(w http.ResponseWriter, r *http.Request, filter func(*p
 	defer f.Close()
 
 	// read the data file
-	results, err := power.Read(f)
+	results, err := power.Read(nil, f)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNoContent)
 		return

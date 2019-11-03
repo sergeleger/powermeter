@@ -11,16 +11,16 @@ import (
 	"github.com/urfave/cli"
 )
 
-// SinkCommand collects power usage information from the command line and outputs it to
-// the correct data directory.
-var SinkCommand = cli.Command{
-	Name:      "sink",
-	Usage:     "Collects power usage details from the command line.",
+// SplitCommand collects power usage information from standard input and outputs it to monthly file
+// structure.
+var SplitCommand = cli.Command{
+	Name:      "split",
+	Usage:     "Collects power usage details from stdin and writes it monthly files",
 	ArgsUsage: "dataDirectory",
-	Action:    sinkAction,
+	Action:    splitAction,
 }
 
-func sinkAction(ctx *cli.Context) error {
+func splitAction(ctx *cli.Context) error {
 	if ctx.NArg() != 1 {
 		return errors.New("error: not enough arguments")
 	}
