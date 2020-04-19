@@ -15,7 +15,7 @@ func main() {
 	app.Commands = []cli.Command{
 		SplitCommand,
 		ImportCommand,
-		// HTTPCommand,
+		HTTPCommand,
 	}
 
 	app.Flags = []cli.Flag{

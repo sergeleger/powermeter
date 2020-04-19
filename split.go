@@ -15,7 +15,7 @@ import (
 // structure.
 var SplitCommand = cli.Command{
 	Name:      "split",
-	Usage:     "Collects power usage details from stdin and writes it monthly files",
+	Usage:     "Collects power usage details from stdin and writes it to monthly files",
 	ArgsUsage: "dataDirectory",
 	Action:    splitAction,
 }

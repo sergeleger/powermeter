@@ -3,13 +3,16 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"github.com/sergeleger/powermeter/power"
 	"github.com/urfave/cli"
 )
@@ -29,13 +32,26 @@ var HTTPCommand = cli.Command{
 }
 
 func httpAction(ctx *cli.Context) error {
-	server := Server(ctx.Args().First())
+	//server := Server(ctx.Args().First())
+	service, err := NewService(ctx.GlobalString("db"))
+	if err != nil {
+		return errors.Wrap(err, "could not connect to the database")
+	}
 
 	muxRouter := mux.NewRouter()
 	r := muxRouter.PathPrefix("/api").Subrouter()
-	r.HandleFunc("/data", server.listDatafile)
-	r.HandleFunc("/daily/{key}", func(w http.ResponseWriter, r *http.Request) { server.filter(w, r, dailyFilter) })
-	r.HandleFunc("/hourly/{key}/{day}", func(w http.ResponseWriter, r *http.Request) { server.filter(w, r, hourlyFilter) })
+	//r.HandleFunc("/data", server.listDatafile)
+	// r.HandleFunc("/{meterID}/daily/{key}", func(w http.ResponseWriter, r *http.Request) { server.filter(w, r, dailyFilter) })
+	// r.HandleFunc("/{meterID}/hourly/{key}/{day}", func(w http.ResponseWriter, r *http.Request) { server.filter(w, r, hourlyFilter) })
+	r.HandleFunc("/{meterID}/monthly/{year}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		meterID, _ := strconv.Atoi(vars["meterID"])
+		usage, err := service.QueryByMonth(meterID, vars["year"])
+		if err != nil {
+			log.Println(err)
+		}
+		json.NewEncoder(w).Encode(usage)
+	})
 
 	//TODO http.Handle("/", handlers.CombinedLoggingHandler(os.Stdout, ssi.Handler(fs.NewIgnoreDir(staticDir))))
 	http.Handle("/api/", handlers.CombinedLoggingHandler(os.Stdout, muxRouter))

@@ -46,7 +46,7 @@ func importAction(ctx *cli.Context) error {
 	}
 
 	// Create the sqlite service
-	srv, err := NewService(ctx.GlobalString("db"))
+	srv, err := NewInfluxDBService("http://pi4:8086/")
 	if err != nil {
 		return errors.Wrap(err, "could not connect to the database")
 	}
@@ -59,6 +59,8 @@ func importAction(ctx *cli.Context) error {
 		return errors.Wrap(err, "error while updating the database")
 	}
 
+	srv.Close()
+
 	err = WriteCache(ctx.GlobalString("cache"), cache)
 	return errors.Wrap(err, "error while updating the cache")
 }
@@ -66,7 +68,7 @@ func importAction(ctx *cli.Context) error {
 func open(file string) (io.ReadCloser, error) {
 	if file == "-" {
 		return ioutil.NopCloser(os.Stdin), nil
-	} else {
-		return os.Open(file)
 	}
+
+	return os.Open(file)
 }

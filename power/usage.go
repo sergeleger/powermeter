@@ -13,9 +13,9 @@ import (
 
 // Usage reflects the cummulative power usage at time Usage.Time
 type Usage struct {
-	Time        time.Time
-	MeterID     int
-	Consumption float64
+	Time        time.Time `db:"Time"`
+	MeterID     int       `db:"MeterID"`
+	Consumption float64   `db:"Usage"`
 }
 
 // Read reads all power reading from the reader.
