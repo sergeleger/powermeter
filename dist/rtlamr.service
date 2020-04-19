@@ -5,7 +5,7 @@ After=rtl-tcp.service
 Wants=rtl-tcp.service
 
 [Service]
-ExecStart=/bin/bash -c "/home/legers/bin/rtlamr -unique=true -msgtype=scm -format=json >> /home/legers/test.json"
+ExecStart=/opt/powermeter/start.sh
 Type=Simple
 Restart=on-failure
 User=legers
