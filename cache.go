@@ -2,8 +2,7 @@ package main
 
 import (
 	"encoding/gob"
-	"os"
-	"sync"
+	"io"
 	"time"
 
 	"github.com/pkg/errors"
@@ -11,10 +10,7 @@ import (
 )
 
 // Cache keeps track of the last power consumption seen for each meter.
-type Cache struct {
-	sync.Mutex
-	cache map[int]cacheVal
-}
+type Cache map[int]cacheVal
 
 type cacheVal struct {
 	Value float64
@@ -22,52 +18,39 @@ type cacheVal struct {
 	Speed float64
 }
 
-// ReadCache reads the cache from the specified file.
-func ReadCache(file string) (*Cache, error) {
-	f, err := os.Open(file)
-
-	cache := &Cache{
-		cache: make(map[int]cacheVal),
+// ReadFrom reads cache from specified reader
+func (c *Cache) ReadFrom(r io.Reader) error {
+	if *c == nil {
+		*c = make(map[int]cacheVal)
 	}
 
-	// if the file does not exist use the empty cache object.
-	if os.IsNotExist(err) {
-		return cache, nil
-	} else if err != nil {
-		return nil, errors.Wrapf(err, "could not open cache file: %s", file)
-	}
-	defer f.Close()
-
-	err = gob.NewDecoder(f).Decode(&cache.cache)
-	return cache, errors.Wrap(err, "error decoding cache")
+	err := gob.NewDecoder(r).Decode(c)
+	return errors.Wrap(err, "error decoding cache")
 }
 
-// WriteCache updates the cache on disk
-func WriteCache(file string, cache *Cache) error {
-	cache.Lock()
-	defer cache.Unlock()
-
-	f, err := os.Create(file)
-	if err != nil {
-		return errors.Wrapf(err, "could not create file: %s", file)
-	}
-	defer f.Close()
-
-	err = gob.NewEncoder(f).Encode(cache.cache)
+// WriteTo writes cache to the specified writer
+func (c *Cache) WriteTo(w io.Writer) error {
+	err := gob.NewEncoder(w).Encode(c)
 	return errors.Wrap(err, "could not encode cache object")
 }
 
 // Update updates the consumption cache for the specified meter ID. Returns the actual usage between
 // the two measurements.
 func (c *Cache) Update(usage *power.Usage) float64 {
-	c.Lock()
-	defer c.Unlock()
+	if *c == nil {
+		*c = make(map[int]cacheVal)
+	}
 
-	previous, ok := c.cache[usage.MeterID]
+	previous, ok := (*c)[usage.MeterID]
 
 	// return zero for the first entry of this meter.
 	if !ok {
-		c.cache[usage.MeterID] = cacheVal{usage.Consumption, usage.Time, 0}
+		(*c)[usage.MeterID] = cacheVal{usage.Consumption, usage.Time, 0}
+		return 0
+	}
+
+	// ignore older entries
+	if usage.Time.Before(previous.TS) || usage.Time.Equal(previous.TS) {
 		return 0
 	}
 
@@ -80,7 +63,7 @@ func (c *Cache) Update(usage *power.Usage) float64 {
 		return 0
 	}
 
-	c.cache[usage.MeterID] = cacheVal{usage.Consumption, usage.Time, speed}
+	(*c)[usage.MeterID] = cacheVal{usage.Consumption, usage.Time, speed}
 	return consumption
 }
 

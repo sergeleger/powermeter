@@ -11,16 +11,17 @@ import (
 
 type InfluxDBService struct {
 	client client.Client
+	db     string
 }
 
 // NewInfluxDBService creates a connection to a SQLite database.
-func NewInfluxDBService(connection string) (*InfluxDBService, error) {
+func NewInfluxDBService(connection string, name string) (*InfluxDBService, error) {
 	c, err := client.NewHTTPClient(client.HTTPConfig{Addr: connection})
 	if err != nil {
 		return nil, err
 	}
 
-	return &InfluxDBService{client: c}, nil
+	return &InfluxDBService{client: c, db: name}, nil
 }
 
 // Close releases all resources.
@@ -29,10 +30,10 @@ func (s *InfluxDBService) Close() error {
 }
 
 // Insert adds new entries to the table
-func (s *InfluxDBService) Insert(usage []*power.Usage) error {
+func (s *InfluxDBService) Insert(usage []power.Usage) error {
 	// Create a new point batch
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  "mydb",
+		Database:  s.db,
 		Precision: "ms",
 	})
 	if err != nil {
