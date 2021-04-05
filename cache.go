@@ -36,7 +36,7 @@ func (c *Cache) WriteTo(w io.Writer) error {
 
 // Update updates the consumption cache for the specified meter ID. Returns the actual usage between
 // the two measurements.
-func (c *Cache) Update(usage *power.Usage) float64 {
+func (c *Cache) Update(usage *power.Measurement) float64 {
 	if *c == nil {
 		*c = make(map[int]cacheVal)
 	}

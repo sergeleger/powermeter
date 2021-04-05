@@ -14,13 +14,17 @@ type WriterTo interface {
 }
 
 func ReadFrom(dest ReaderFrom, file string) error {
-	f, err := os.Open(file)
-	if err != nil {
-		return err
+	var r io.Reader = os.Stdin
+	if file != "-" {
+		f, err := os.Open(file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		r = f
 	}
-	defer f.Close()
 
-	return dest.ReadFrom(f)
+	return dest.ReadFrom(r)
 }
 
 func WriteTo(src WriterTo, file string) error {

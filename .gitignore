@@ -1,1 +1,5 @@
 vendor
+.history.d
+config.json
+cache.gob
+powermeter
