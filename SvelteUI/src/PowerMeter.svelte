@@ -5,6 +5,10 @@
     export let year: number;
     export let month: number = 1;
 
+    const formater = new Intl.NumberFormat("en-CA", {
+        minimumIntegerDigits: 2,
+    });
+
     let entries: PowerSummary[] = [];
     let mounted: boolean;
     onMount(() => (mounted = true));
@@ -43,7 +47,11 @@
     <tbody>
         {#each entries as u}
             <tr>
-                <td>{u.year}-{u.month}-{u.day}</td>
+                <td
+                    >{u.year}-{formater.format(u.month)}-{formater.format(
+                        u.day
+                    )}</td
+                >
                 <td>{u.consumption}</td>
             </tr>
         {/each}
