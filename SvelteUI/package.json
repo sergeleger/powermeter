@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "build": "rollup -c",
-      "dev": "rollup -c -w",
-      "start": "sirv public --no-clear --host",
+    "dev": "rollup -c -w",
+    "start": "sirv public --no-clear --host",
     "validate": "svelte-check"
   },
   "devDependencies": {
