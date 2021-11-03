@@ -1,5 +1,7 @@
 <script lang="ts">
 	import PowerMeter from "./PowerMeter.svelte";
+	import Live from "./Live.svelte";
+	import Yearly from "./Yearly.svelte";
 
 	let year: number = new Date().getFullYear();
 	let month: number = new Date().getMonth() + 1;
@@ -27,6 +29,10 @@
 
 <main>
 	<h1>PowerMeter</h1>
+
+	<Live />
+
+	<Yearly />
 
 	<button on:click={prev}>&lt;</button>
 	<label>

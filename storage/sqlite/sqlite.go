@@ -4,6 +4,8 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"log"
+	"sync"
 
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/sergeleger/powermeter/power"
@@ -14,26 +16,61 @@ const homeMeterID = 18011759
 //go:embed ddl/*
 var ddlFS embed.FS
 
-// Open opens the specified SQLite file.
-func Open(file string) (*Service, error) {
-	var s Service
-	var err error
-	if s.db, err = sqlitex.Open(file, 0, 10); err != nil {
-		return nil, err
-	}
-
-	err = s.initDDL()
-	return &s, err
-}
-
 // Service implements methods for storing
 type Service struct {
-	db *sqlitex.Pool
+	db     *sqlitex.Pool
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	mu    sync.RWMutex
+	cache map[int64]power.Measurement
+}
+
+// Open opens the specified SQLite file.
+func Open(file string) (s *Service, err error) {
+	defer func() {
+		if err != nil {
+			if s.cancel != nil {
+				s.cancel()
+			}
+
+			if s.db != nil {
+				s.db.Close()
+			}
+		}
+	}()
+
+	s = &Service{cache: make(map[int64]power.Measurement)}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	if s.db, err = sqlitex.Open(file, 0, 10); err != nil {
+		return s, err
+	}
+
+	// Create/update the database schema
+	if err = s.initDDL(); err != nil {
+		return s, err
+	}
+
+	// Load cache information
+	if err = s.loadCache(); err != nil {
+		return s, err
+	}
+
+	s.startCacheWorker()
+	return s, err
 }
 
 // Close releases the database resources.
 func (s *Service) Close() error {
-	return s.db.Close()
+	defer s.db.Close()
+
+	err := s.saveCache()
+	if err != nil {
+		log.Printf("cache: %v", err)
+	}
+
+	s.cancel()
+	return err
 }
 
 func (s *Service) Insert(measurements []power.Measurement) (err error) {
@@ -46,6 +83,11 @@ func (s *Service) Insert(measurements []power.Measurement) (err error) {
 		values (?, ?, ?, ?, ?, ?)`
 
 	for _, m := range measurements {
+		m.Consumption = s.adjustConsumption(m)
+		if m.Consumption == 0 {
+			continue
+		}
+
 		err = sqlitex.Exec(
 			conn,
 			insert,

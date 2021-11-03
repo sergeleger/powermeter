@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/sergeleger/powermeter/power"
 	"github.com/sergeleger/powermeter/storage/sqlite"
@@ -23,22 +22,13 @@ var ServeCommand = cli.Command{
 	Action: serveAction,
 	Flags: []cli.Flag{
 		&cli.StringFlag{Name: "db", Value: "power.db", Usage: "SQLite file"},
-		&cli.StringFlag{Name: "cache", Value: "power.gob", Usage: "cache file"},
 		&cli.StringFlag{Name: "http", Usage: "start HTTP service at `addr`ess. (example: localhost:8088)"},
-		&cli.IntFlag{Name: "meter", Usage: "Accept only `meter_id` measurements.", EnvVars: []string{"POWERMETER_FILTER"}},
+		&cli.Int64Flag{Name: "meter", Usage: "Accept only `meter_id` measurements.", EnvVars: []string{"POWERMETER_FILTER"}},
 		&cli.IntFlag{Name: "batch", Value: 1, Usage: "transaction batch size, small values for live updating"},
 	},
 }
 
 func serveAction(c *cli.Context) (err error) {
-	// Read the meter cache
-	var cache Cache
-	var cacheFile = c.String("cache")
-	err = ReadFrom(&cache, cacheFile)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
 	// Connect to SQLite service
 	service, err := sqlite.Open(c.String("db"))
 	if err != nil {
@@ -81,16 +71,15 @@ func serveAction(c *cli.Context) (err error) {
 		log.Println("Start scanning.")
 
 		// Create filtering method
-		accept := func(id int) bool { return true }
+		accept := func(id int64) bool { return true }
 		if c.IsSet("meter") {
-			meter := c.Int("meter")
-			accept = func(id int) bool {
+			meter := c.Int64("meter")
+			accept = func(id int64) bool {
 				return id == meter
 			}
 		}
 
 		var err error
-
 		sc := bufio.NewScanner(os.Stdin)
 		for sc.Scan() {
 			var m power.Measurement
@@ -115,17 +104,11 @@ func serveAction(c *cli.Context) (err error) {
 
 	i, n := 0, c.Int("batch")
 	batch := make([]power.Measurement, n)
-	timer := time.NewTicker(10 * time.Minute)
 	var stop bool
 	for !stop {
 		select {
 		case <-ctx.Done():
 			stop = true
-
-		case <-timer.C:
-			if err := WriteTo(&cache, cacheFile); err != nil {
-				log.Println(err)
-			}
 
 		case m, ok := <-ch:
 			if !ok {
@@ -133,7 +116,6 @@ func serveAction(c *cli.Context) (err error) {
 				break
 			}
 			batch[i] = m
-			batch[i].Consumption = cache.Update(&batch[i])
 			i++
 			if i < n {
 				continue
@@ -145,7 +127,6 @@ func serveAction(c *cli.Context) (err error) {
 			i = 0
 		}
 	}
-	timer.Stop()
 
 	os.Stdin.Close()
 
@@ -154,11 +135,6 @@ func serveAction(c *cli.Context) (err error) {
 		if err := service.Insert(batch[0:i]); err != nil {
 			log.Println(err)
 		}
-	}
-
-	// update cache
-	if err := WriteTo(&cache, cacheFile); err != nil {
-		log.Println(err)
 	}
 
 	log.Println("Shutting down services.")

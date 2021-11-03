@@ -10,7 +10,7 @@ import replace from "@rollup/plugin-replace";
 
 const production = !process.env.ROLLUP_WATCH;
 
-let serviceURL = "http://localhost:8088/api";
+let serviceURL = "http://pi4:5000/api";
 if (production) {
 	serviceURL = "/api";
 }

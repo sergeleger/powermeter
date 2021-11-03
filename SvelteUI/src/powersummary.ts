@@ -5,6 +5,7 @@ export type PowerSummary = {
     consumption: number;
     month?: number;
     day?: number;
+    hour?: number;
 }
 
 export type PowerDetail = {

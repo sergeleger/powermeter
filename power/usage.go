@@ -1,6 +1,7 @@
 package power
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,8 +12,8 @@ import (
 // Measurement reflects the cummulative power usage at time Usage.Time
 type Measurement struct {
 	Time        time.Time `db:"Time"`
-	MeterID     int       `db:"MeterID"`
-	Consumption float64   `db:"Usage"`
+	MeterID     int64     `db:"MeterID"`
+	Consumption int64     `db:"Usage"`
 }
 
 // UnmarshalJSON implements json.Unmarshaler and decodes the SCM protocol.
@@ -42,15 +43,19 @@ type Measurements []*Measurement
 
 // ReadFrom reads measurements from the provided reader.
 func (m *Measurements) ReadFrom(r io.Reader) (err error) {
-	dec := json.NewDecoder(r)
+	bufR := bufio.NewReader(r)
+	var buf []byte
+
 	for err == nil {
-		var measurement Measurement
-		err = dec.Decode(&measurement)
-		if err == io.EOF {
+		buf, err = bufR.ReadBytes('\n')
+		if err != nil {
 			break
 		}
+
+		var measurement Measurement
+		err = json.Unmarshal(buf, &measurement)
 		if err != nil {
-			log.Println(err)
+			log.Println(err, buf)
 			err = nil
 			continue
 		}
@@ -60,6 +65,9 @@ func (m *Measurements) ReadFrom(r io.Reader) (err error) {
 
 	if err == io.EOF {
 		err = nil
+	}
+	if err != nil {
+		log.Println(err)
 	}
 
 	return err
@@ -91,8 +99,8 @@ func (m *Measurements) Len() int { return len(*m) }
 type scmEncoding struct {
 	Time    Time `json:"Time"`
 	Message struct {
-		ID          int     `json:"ID"`
-		Consumption float64 `json:"Consumption"`
+		ID          int64 `json:"ID"`
+		Consumption int64 `json:"Consumption"`
 	} `json:"Message"`
 }
 

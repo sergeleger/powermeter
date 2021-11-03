@@ -7,7 +7,7 @@ After=network-online.target
 ExecStart=/usr/bin/rtl_tcp
 Type=Simple
 Restart=on-failure
-User=legers
+User=root
 
 [Install]
 WantedBy=multi-user.target

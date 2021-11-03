@@ -8,7 +8,7 @@ Wants=rtl-tcp.service
 ExecStart=/opt/powermeter/start.sh
 Type=Simple
 Restart=on-failure
-User=legers
+User=root
 
 [Install]
 WantedBy=multi-user.target
