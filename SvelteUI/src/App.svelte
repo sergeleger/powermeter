@@ -2,6 +2,7 @@
 	import PowerMeter from "./PowerMeter.svelte";
 	import Live from "./Live.svelte";
 	import Yearly from "./Yearly.svelte";
+	import Speed from "./Speed.svelte";
 
 	let year: number = new Date().getFullYear();
 	let month: number = new Date().getMonth() + 1;
@@ -29,6 +30,8 @@
 
 <main>
 	<h1>PowerMeter</h1>
+
+	<Speed />
 
 	<Live />
 
