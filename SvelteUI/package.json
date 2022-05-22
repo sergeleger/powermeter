@@ -29,6 +29,5 @@
         "@rollup/plugin-replace": "^3.0.0",
         "chart.js": "^3.0.2",
         "sirv-cli": "^1.0.0"
-    },
-    "packageManager": "yarn@3.1.0"
+    }
 }
