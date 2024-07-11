@@ -2,7 +2,7 @@ module github.com/sergeleger/powermeter
 
 require (
 	crawshaw.io/sqlite v0.3.2
-	github.com/gofiber/fiber/v2 v2.52.1
+	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/matryer/is v1.4.0
 	github.com/urfave/cli/v2 v2.11.1
 )
