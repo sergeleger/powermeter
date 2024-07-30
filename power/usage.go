@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Measurement reflects the cummulative power usage at time Usage.Time
+// Measurement reflects the cumulative power usage at time Usage.Time
 type Measurement struct {
 	Time        time.Time `db:"Time"`
 	MeterID     int64     `db:"MeterID"`

@@ -2,5 +2,14 @@
   "go.testEnvVars": {
     "IS_NO_COLOR": true
   },
-  "editor.detectIndentation": false
+  "editor.detectIndentation": false,
+  "cSpell.customDictionaries": {
+    "custom-dictionary-workspace": {
+      "name": "custom-dictionary-workspace",
+      "path": "${workspaceFolder:powermeter}/.cspell/custom-dictionary-workspace.txt",
+      "addWords": true,
+      "scope": "workspace"
+    }
+  },
+  "terminal.integrated.lineHeight": 1.2
 }

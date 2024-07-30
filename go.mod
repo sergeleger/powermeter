@@ -1,5 +1,7 @@
 module github.com/sergeleger/powermeter
 
+go 1.22
+
 require (
 	crawshaw.io/sqlite v0.3.2
 	github.com/gofiber/fiber/v2 v2.52.5
@@ -23,5 +25,3 @@ require (
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 )
-
-go 1.18

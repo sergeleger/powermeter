@@ -15,7 +15,7 @@ var SplitCommand = cli.Command{
 	Usage:  "splits measurements into monthly files",
 	Action: splitAction,
 	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "destination", Usage: "destination `directory`"},
+		&cli.StringFlag{Name: "destination", Required: true, Usage: "destination `directory`"},
 	},
 }
 
