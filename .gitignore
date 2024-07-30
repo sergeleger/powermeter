@@ -6,3 +6,5 @@ powermeter
 .env
 Backup
 data
+*.db
+*.db-*
