@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"crawshaw.io/sqlite/sqlitex"
-	"github.com/sergeleger/powermeter/power"
+	"github.com/sergeleger/powermeter"
 )
 
 func (s *Service) loadCache() error {
@@ -29,7 +29,7 @@ func (s *Service) loadCache() error {
 			break
 		}
 
-		s.cache[stmt.GetInt64("meter_id")] = power.Measurement{
+		s.cache[stmt.GetInt64("meter_id")] = powermeter.Measurement{
 			Time:        time.Unix(stmt.GetInt64("last_entry"), 0),
 			Consumption: stmt.GetInt64("consumption"),
 			MeterID:     stmt.GetInt64("meter_id"),
@@ -74,7 +74,7 @@ func (s *Service) saveCache() error {
 	return nil
 }
 
-func (s *Service) adjustConsumption(usage power.Measurement) int64 {
+func (s *Service) adjustConsumption(usage powermeter.Measurement) int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

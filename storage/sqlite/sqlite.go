@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"crawshaw.io/sqlite/sqlitex"
-	"github.com/sergeleger/powermeter/power"
+	"github.com/sergeleger/powermeter"
 )
 
 const homeMeterID = 18011759
@@ -23,7 +23,7 @@ type Service struct {
 	cancel context.CancelFunc
 
 	mu    sync.RWMutex
-	cache map[int64]power.Measurement
+	cache map[int64]powermeter.Measurement
 }
 
 // Open opens the specified SQLite file.
@@ -40,7 +40,7 @@ func Open(file string) (s *Service, err error) {
 		}
 	}()
 
-	s = &Service{cache: make(map[int64]power.Measurement)}
+	s = &Service{cache: make(map[int64]powermeter.Measurement)}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	if s.db, err = sqlitex.Open(file, 0, 10); err != nil {
 		return s, err
@@ -73,7 +73,7 @@ func (s *Service) Close() error {
 	return err
 }
 
-func (s *Service) Insert(measurements []power.Measurement) (err error) {
+func (s *Service) Insert(measurements []powermeter.Measurement) (err error) {
 	conn := s.db.Get(context.Background())
 	defer s.db.Put(conn)
 	defer sqlitex.Save(conn)(&err)

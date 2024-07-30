@@ -2,7 +2,6 @@ vendor
 .history.d
 config.json
 cache.gob
-powermeter
 .env
 Backup
 data

@@ -1,6 +1,9 @@
 # Custom Dictionary Words
+crawshaw
 github
 gofiber
+powermeter
 sergeleger
 sqlite
+sqlitex
 urfave
