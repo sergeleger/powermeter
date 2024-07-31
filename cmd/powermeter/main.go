@@ -13,7 +13,7 @@ func main() {
 		Usage: "power meter tool",
 		Commands: []*cli.Command{
 			&SplitCommand,
-			// &ServeCommand,
+			&ServeCommand,
 			// &APICommand,
 		},
 	}

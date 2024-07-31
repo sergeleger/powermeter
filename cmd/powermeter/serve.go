@@ -1,41 +1,104 @@
 package main
 
-//
+import (
+	"context"
+	"fmt"
+	"io/fs"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"time"
+
+	"github.com/sergeleger/powermeter/handler"
+	"github.com/sergeleger/powermeter/storage/sqlite"
+	"github.com/urfave/cli/v2"
+)
+
 // import (
-// 	"bufio"
-// 	"context"
-// 	"encoding/json"
-// 	"log"
-// 	"os"
-// 	"os/signal"
-// 	"syscall"
 //
-// 	"github.com/sergeleger/powermeter/power"
-// 	"github.com/sergeleger/powermeter/storage/sqlite"
-// 	"github.com/urfave/cli/v2"
+//	"bufio"
+//	"context"
+//	"encoding/json"
+//	"log"
+//	"os"
+//	"os/signal"
+//	"syscall"
+//
+//	"github.com/sergeleger/powermeter/power"
+//	"github.com/sergeleger/powermeter/storage/sqlite"
+//	"github.com/urfave/cli/v2"
+//
 // )
 //
-// // ServeCommand accepts power measurement from standard input and writes them to the
-// // database.
-// var ServeCommand = cli.Command{
-// 	Name:   "serve",
-// 	Usage:  "start the PowerMeter server",
-// 	Action: serveAction,
-// 	Flags: []cli.Flag{
-// 		&cli.StringFlag{Name: "db", Value: "power.db", Usage: "SQLite file"},
-// 		&cli.StringFlag{Name: "http", Usage: "start HTTP service at `addr`ess. (example: localhost:8088)"},
-// 		&cli.Int64Flag{Name: "meter", Usage: "Accept only `meter_id` measurements.", EnvVars: []string{"POWERMETER_FILTER"}},
-// 		&cli.IntFlag{Name: "batch", Value: 1, Usage: "transaction batch size, small values for live updating"},
-// 	},
-// }
+// ServeCommand accepts power measurement from standard input and writes them to the
+// database.
+var ServeCommand = cli.Command{
+	Name:   "serve",
+	Usage:  "start the PowerMeter server",
+	Action: serveAction,
+	Flags: []cli.Flag{
+		&cli.StringFlag{Name: "db", Value: "power.db", Usage: "SQLite file", Required: true},
+		&cli.StringFlag{Name: "http", Usage: "start HTTP service at `addr`ess. (example: localhost:8088)"},
+		&cli.Int64Flag{Name: "meter", Usage: "Accept only `meter_id` measurements.", EnvVars: []string{"POWERMETER_FILTER"}},
+		&cli.IntFlag{Name: "batch", Value: 1, Usage: "transaction batch size, small values for live updating"},
+		&cli.StringFlag{Name: "html", Usage: "HTML content directory"},
+	},
+}
+
+func serveAction(c *cli.Context) (err error) {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	// Connect to SQLite service
+	service, err := sqlite.Open(c.String("db"))
+	if err != nil {
+		return err
+	}
+	defer service.Close()
+
+	var htmlFS fs.FS
+	if html := c.String("html"); html != "" {
+		htmlFS = os.DirFS(html)
+	}
+
+	srv := handler.NewServer(service, htmlFS)
+	httpServer := &http.Server{
+		Addr:         c.String("http"),
+		Handler:      srv,
+		ReadTimeout:  5 * time.Minute,
+		WriteTimeout: 2 * time.Minute,
+		IdleTimeout:  10 * time.Second,
+	}
+
+	go func() {
+		log.Printf("listening on %s\n", httpServer.Addr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
+		}
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-ctx.Done()
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
+		}
+	}()
+
+	wg.Wait()
+	return nil
+}
+
 //
 // func serveAction(c *cli.Context) (err error) {
-// 	// Connect to SQLite service
-// 	service, err := sqlite.Open(c.String("db"))
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer service.Close()
+
 //
 // 	// create shutdown context
 // 	ctx, cancel := context.WithCancel(context.Background())
