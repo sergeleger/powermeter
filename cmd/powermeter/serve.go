@@ -16,22 +16,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// import (
-//
-//	"bufio"
-//	"context"
-//	"encoding/json"
-//	"log"
-//	"os"
-//	"os/signal"
-//	"syscall"
-//
-//	"github.com/sergeleger/powermeter/power"
-//	"github.com/sergeleger/powermeter/storage/sqlite"
-//	"github.com/urfave/cli/v2"
-//
-// )
-//
 // ServeCommand accepts power measurement from standard input and writes them to the
 // database.
 var ServeCommand = cli.Command{
@@ -99,23 +83,6 @@ func serveAction(c *cli.Context) (err error) {
 //
 // func serveAction(c *cli.Context) (err error) {
 
-//
-// 	// create shutdown context
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	defer cancel()
-//
-// 	// setup termination signals and wait for
-// 	go func() {
-// 		stop := make(chan os.Signal, 1)
-// 		signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-// 		select {
-// 		case <-stop:
-// 			cancel()
-//
-// 		case <-ctx.Done():
-// 			return
-// 		}
-// 	}()
 //
 // 	// start API service in the background
 // 	var httpService APIService
