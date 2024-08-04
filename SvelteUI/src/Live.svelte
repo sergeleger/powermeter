@@ -46,17 +46,9 @@
 			today.setDate(d - 1);
 		}
 
-		const resp = await Promise.all<Response, Response, Response>([
-			queries[0],
-			queries[1],
-			queries[2],
-		]);
+		const resp = await Promise.all([queries[0], queries[1], queries[2]]);
 
-		let usage = await Promise.all<PowerSummary[], PowerSummary[], PowerSummary[]>([
-			resp[0].json(),
-			resp[1].json(),
-			resp[2].json(),
-		]);
+		let usage = await Promise.all([resp[0].json(), resp[1].json(), resp[2].json()]);
 
 		const allUsage = [...usage[2], ...usage[1], ...usage[0]];
 
@@ -90,7 +82,7 @@
 	}
 
 	let ctx: HTMLCanvasElement;
-	let timer: NodeJS.Timer;
+	let timer: NodeJS.Timeout;
 	let chart: Chart;
 
 	onMount(() => {

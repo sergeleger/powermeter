@@ -4,7 +4,7 @@
 
 	let refreshRateInMS: number = 60_000;
 
-	let timer: NodeJS.Timer;
+	let timer: NodeJS.Timeout;
 	let speed: number = 0;
 
 	onMount(async () => {
