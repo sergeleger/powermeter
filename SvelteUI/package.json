@@ -14,7 +14,7 @@
         "@rollup/plugin-typescript": "^8.3.0",
         "@tsconfig/svelte": "^2.0.1",
         "@types/chart.js": "^2.9.31",
-        "rollup": "^2.3.4",
+        "rollup": "^3.29.5",
         "rollup-plugin-css-only": "^3.1.0",
         "rollup-plugin-livereload": "^2.0.0",
         "rollup-plugin-svelte": "^7.0.0",
