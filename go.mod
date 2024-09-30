@@ -1,6 +1,6 @@
 module github.com/sergeleger/powermeter
 
-go 1.22
+go 1.23
 
 require (
 	crawshaw.io/sqlite v0.3.2
