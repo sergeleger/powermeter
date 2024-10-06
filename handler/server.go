@@ -10,9 +10,9 @@ import (
 	"github.com/sergeleger/powermeter/storage/sqlite"
 )
 
-func NewServer(db *sqlite.Service, htmlFS fs.FS) http.Handler {
+func NewServer(db *sqlite.Database, meterID int64, htmlFS fs.FS) http.Handler {
 	mux := http.NewServeMux()
-	addRoutes(mux, db, htmlFS)
+	addRoutes(mux, meterID, db, htmlFS)
 
 	cors := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
@@ -26,28 +26,38 @@ func NewServer(db *sqlite.Service, htmlFS fs.FS) http.Handler {
 
 	return handler
 }
-func byDate(db *sqlite.Service) http.HandlerFunc {
+
+func byDate(db *sqlite.Database, meterID int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		details, _ := strconv.ParseBool(r.FormValue("details"))
 
-		var args []int
-		for _, k := range []string{"year", "month", "day"} {
-			v := r.PathValue(k)
-			if v == "" {
-				break
-			}
+		var (
+			rows       any
+			err        error
+			detailReq  sqlite.DetailRequest
+			summaryReq sqlite.SummaryRequest
+		)
 
-			i, err := strconv.Atoi(v)
+		switch {
+		case details:
+			detailReq, err = newDetailRequest(meterID, r)
 			if err != nil {
 				http.Error(w, "", http.StatusBadRequest)
 				return
 			}
 
-			args = append(args, i)
+			rows, err = sqlite.Detail(r.Context(), db, detailReq)
+
+		default:
+			summaryReq, err = newSummaryRequest(meterID, r)
+			if err != nil {
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			rows, err = sqlite.Summary(r.Context(), db, summaryReq)
 		}
 
-		var rows interface{}
-		var err error
-		rows, err = db.Summary(r.FormValue("details") == "true", args...)
 		if err != nil {
 			http.Error(w, "", http.StatusInternalServerError)
 			return
@@ -55,4 +65,56 @@ func byDate(db *sqlite.Service) http.HandlerFunc {
 
 		json.NewEncoder(w).Encode(rows)
 	}
+}
+
+func newSummaryRequest(meterID int64, r *http.Request) (sqlite.SummaryRequest, error) {
+	req := sqlite.SummaryRequest{MeterID: meterID}
+	for _, k := range []string{"year", "month", "day"} {
+		v := r.PathValue(k)
+		if v == "" {
+			break
+		}
+
+		i, err := strconv.ParseUint(v, 10, 0)
+		if err != nil {
+			return req, err
+		}
+
+		switch k {
+		case "year":
+			req.Year = uint(i)
+		case "month":
+			req.Month = uint(i)
+		case "day":
+			req.Day = uint(i)
+		}
+	}
+
+	return req, nil
+}
+
+func newDetailRequest(meterID int64, r *http.Request) (sqlite.DetailRequest, error) {
+	req := sqlite.DetailRequest{MeterID: meterID}
+	for _, k := range []string{"year", "month", "day"} {
+		v := r.PathValue(k)
+		if v == "" {
+			break
+		}
+
+		i, err := strconv.ParseUint(v, 10, 0)
+		if err != nil {
+			return req, err
+		}
+
+		switch k {
+		case "year":
+			req.Year = uint(i)
+		case "month":
+			req.Month = uint(i)
+		case "day":
+			req.Day = uint(i)
+		}
+	}
+
+	return req, nil
 }

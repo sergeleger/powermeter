@@ -1,5 +1,5 @@
 
--- history contains historical DDL updates performed to the databse.
+-- history contains historical DDL updates performed to the database.
 create table if not exists history (
     file text,
     user text,

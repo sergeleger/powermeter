@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"io"
 	"slices"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/sergeleger/powermeter"
 	"github.com/sergeleger/powermeter/ioutil"
 	"github.com/sergeleger/powermeter/storage/sqlite"
@@ -31,17 +33,18 @@ func importAction(c *cli.Context) error {
 		args = append(args, "-")
 	}
 
-	// Connect to SQLite service
-	service, err := sqlite.Open(c.String("db"))
-	if err != nil {
+	// Connect to SQLite db
+	db := sqlite.NewDatabase(c.String("db"))
+	if err := db.Open(); err != nil {
 		return err
 	}
-	defer service.Close()
+	defer db.Close()
 
 	batchSize := max(1, c.Int("batch"))
 	del := newDeleteFilter(c.Int64("meter"))
 
 	var measurements []powermeter.Measurement
+	var err error
 	for _, f := range args {
 		measurements, err = ioutil.ReadFrom(f, func(r io.Reader) ([]powermeter.Measurement, error) {
 			measurements, err := ioutil.ReadJSONL(measurements, r)
@@ -51,11 +54,18 @@ func importAction(c *cli.Context) error {
 
 			measurements = slices.DeleteFunc(measurements, del)
 			var i int
-			for i = 0; i+batchSize < len(measurements); i += batchSize {
-				err := service.Insert(measurements[i : i+batchSize])
-				if err != nil {
-					return nil, err
+
+			err = db.Transaction(context.Background(), func(ctx context.Context, tx *sqlx.Tx) error {
+				for i = 0; i+batchSize < len(measurements); i += batchSize {
+					err := db.Insert(ctx, tx, measurements[i:i+batchSize])
+					if err != nil {
+						return err
+					}
 				}
+				return nil
+			})
+			if err != nil {
+				return nil, err
 			}
 
 			return measurements[i:], nil
@@ -67,7 +77,9 @@ func importAction(c *cli.Context) error {
 	}
 
 	if len(measurements) > 0 {
-		return service.Insert(measurements)
+		return db.Transaction(context.Background(), func(ctx context.Context, tx *sqlx.Tx) error {
+			return db.Insert(ctx, tx, measurements)
+		})
 	}
 
 	return nil

@@ -1,6 +1,6 @@
 
 create view if not exists vw_cache as
-    select meter_id, consumption, datetime(last_entry, 'unixepoch', 'localtime') from cache;
+    select meter_id, consumption, datetime(last_entry, 'unixepoch', 'LOCALTIME') from cache;
 
 insert into history values(
     '004-vw_cache.sql',

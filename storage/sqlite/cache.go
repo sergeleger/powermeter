@@ -1,88 +1,91 @@
 package sqlite
 
 import (
+	"context"
 	"time"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"github.com/jmoiron/sqlx"
 	"github.com/sergeleger/powermeter"
 )
 
-func (s *Service) loadCache() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+type cacheEntry struct {
+	MeterID     int64 `db:"meter_id"`
+	Consumption int64 `db:"consumption"`
+	LastEntry   int64 `db:"last_entry"`
+}
 
-	conn := s.db.Get(s.ctx)
-	defer s.db.Put(conn)
+func (db *Database) loadCache() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
 
-	stmt, err := conn.Prepare(`select meter_id, consumption, last_entry from cache`)
+	var cache []cacheEntry
+	err := sqlx.Select(db, &cache, `select meter_id, consumption, last_entry from cache`)
 	if err != nil {
 		return err
 	}
 
-	var hasRow bool
-	for {
-		if hasRow, err = stmt.Step(); err != nil {
-			return err
-		}
-
-		if !hasRow {
-			break
-		}
-
-		s.cache[stmt.GetInt64("meter_id")] = powermeter.Measurement{
-			Time:        time.Unix(stmt.GetInt64("last_entry"), 0),
-			Consumption: stmt.GetInt64("consumption"),
-			MeterID:     stmt.GetInt64("meter_id"),
+	for _, c := range cache {
+		db.cache[c.MeterID] = powermeter.Measurement{
+			Time:        time.Unix(c.LastEntry, 0),
+			MeterID:     c.MeterID,
+			Consumption: c.Consumption,
 		}
 	}
+
 	return nil
 }
 
-func (s *Service) startCacheWorker() {
+func (db *Database) startCacheWorker() {
+	timer := time.NewTicker(10 * time.Minute)
 	go func() {
-		timer := time.NewTicker(10 * time.Minute)
 		for {
 			select {
-			case <-s.ctx.Done():
+			case <-db.ctx.Done():
 				timer.Stop()
 				return
 
 			case <-timer.C:
-				s.saveCache()
+				db.saveCache()
 			}
 		}
 	}()
 }
 
-func (s *Service) saveCache() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (db *Database) saveCache() error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 
-	conn := s.db.Get(s.ctx)
-	defer s.db.Put(conn)
+	stmt := `insert into
+		cache(meter_id, consumption, last_entry)
+		values(:meter_id, :consumption, :last_entry)
+		on conflict(meter_id) do
+		update set
+			consumption=excluded.consumption,
+			last_entry=excluded.last_entry`
 
-	insert := `insert into cache(meter_id, consumption, last_entry) values( ?, ?, ? )
-		on conflict(meter_id) do update set consumption = excluded.consumption, last_entry = excluded.last_entry`
-
-	for k, v := range s.cache {
-		err := sqlitex.Exec(conn, insert, nil, k, v.Consumption, v.Time.Unix())
-		if err != nil {
-			return err
+	return db.Transaction(context.Background(), func(ctx context.Context, tx *sqlx.Tx) error {
+		for _, cache := range db.cache {
+			_, err := tx.NamedExec(stmt, cacheEntry{
+				MeterID:     cache.MeterID,
+				Consumption: cache.Consumption,
+				LastEntry:   cache.Time.Unix(),
+			})
+			if err != nil {
+				return err
+			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
-func (s *Service) adjustConsumption(usage powermeter.Measurement) int64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (db *Database) adjustConsumption(usage powermeter.Measurement) int64 {
+	db.mu.Lock()
+	defer db.mu.Unlock()
 
-	old, ok := s.cache[usage.MeterID]
-
-	// First entry for this meter.
+	old, ok := db.cache[usage.MeterID]
 	if !ok {
-		s.cache[usage.MeterID] = usage
+		// First entry for this meter.
+		db.cache[usage.MeterID] = usage
 		return 0
 	}
 
@@ -91,7 +94,7 @@ func (s *Service) adjustConsumption(usage powermeter.Measurement) int64 {
 		return 0
 	}
 
-	s.cache[usage.MeterID] = usage
+	db.cache[usage.MeterID] = usage
 	consumption := consumption(old.Consumption, usage.Consumption)
 	sameMonth := old.Time.Month() == usage.Time.Month() &&
 		old.Time.Year() == usage.Time.Year()
@@ -108,15 +111,6 @@ func (s *Service) adjustConsumption(usage powermeter.Measurement) int64 {
 	default:
 		return consumption
 	}
-
-	//
-	// 	newConsumption := consumption(old.Consumption, usage.Consumption)
-	// 	ok = newConsumption > 0 && newConsumption < 100
-	// 	if ok {
-	// 		s.cache[usage.MeterID] = *usage
-	// 		usage.Consumption = newConsumption
-	// 	}
-	// 	return ok
 }
 
 // consumption calculates the amount of power used since the last measurement. Also, corrects the

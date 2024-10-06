@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/sergeleger/powermeter"
 	"github.com/sergeleger/powermeter/handler"
 	"github.com/sergeleger/powermeter/storage/sqlite"
@@ -34,19 +35,18 @@ var ServeCommand = cli.Command{
 }
 
 func serveAction(c *cli.Context) (err error) {
-	// Connect to SQLite service
-	service, err := sqlite.Open(c.String("db"))
-	if err != nil {
+	db := sqlite.NewDatabase(c.String("db"))
+	if err := db.Open(); err != nil {
 		return err
 	}
-	defer service.Close()
+	defer db.Close()
 
 	var htmlFS fs.FS
 	if html := c.String("html"); html != "" {
 		htmlFS = os.DirFS(html)
 	}
 
-	srv := handler.NewServer(service, htmlFS)
+	srv := handler.NewServer(db, c.Int64("meter"), htmlFS)
 	httpServer := &http.Server{
 		Addr:         c.String("http"),
 		Handler:      srv,
@@ -75,7 +75,10 @@ func serveAction(c *cli.Context) (err error) {
 				continue
 			}
 
-			if err := service.Insert([]powermeter.Measurement{m}); err != nil {
+			err := db.Transaction(ctx, func(ctx context.Context, tx *sqlx.Tx) error {
+				return db.Insert(ctx, tx, []powermeter.Measurement{m})
+			})
+			if err != nil {
 				log.Println(err)
 			}
 		}

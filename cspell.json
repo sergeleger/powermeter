@@ -1,0 +1,21 @@
+{
+  "version": "0.2",
+  "ignorePaths": [],
+  "dictionaryDefinitions": [],
+  "dictionaries": [],
+  "words": [
+    "github",
+    "jmoiron",
+    "legers",
+    "matryer",
+    "modernc",
+    "powermeter",
+    "Queryx",
+    "sergeleger",
+    "sqlite",
+    "sqlx",
+    "unixepoch"
+  ],
+  "ignoreWords": [],
+  "import": []
+}

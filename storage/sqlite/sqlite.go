@@ -2,13 +2,16 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"github.com/jmoiron/sqlx"
 	"github.com/sergeleger/powermeter"
+	_ "modernc.org/sqlite"
 )
 
 const homeMeterID = 18011759
@@ -16,82 +19,108 @@ const homeMeterID = 18011759
 //go:embed ddl/*
 var ddlFS embed.FS
 
-// Service implements methods for storing
-type Service struct {
-	db     *sqlitex.Pool
+// Database represents the database connection.
+type Database struct {
+	*sqlx.DB
+	dsn string
+
+	mu     sync.RWMutex
+	cache  map[int64]powermeter.Measurement
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	mu    sync.RWMutex
-	cache map[int64]powermeter.Measurement
 }
 
-// Open opens the specified SQLite file.
-func Open(file string) (s *Service, err error) {
+// NewDatabase creates a new SQLite client and creates the initial database schema.
+func NewDatabase(filename string) *Database {
+	db := &Database{
+		dsn:   filename,
+		cache: make(map[int64]powermeter.Measurement),
+	}
+
+	db.ctx, db.cancel = context.WithCancel(context.Background())
+	return db
+}
+
+// NewMemoryDatabase creates an in-memory version of the SQLite database.
+func NewMemoryDatabase() *Database {
+	return NewDatabase(":memory:")
+}
+
+// Open opens the database connection.
+func (db *Database) Open() (err error) {
+	if db.dsn == "" {
+		return errors.New("error: missing database file name")
+	}
+
 	defer func() {
 		if err != nil {
-			if s.cancel != nil {
-				s.cancel()
-			}
-
-			if s.db != nil {
-				s.db.Close()
-			}
+			db.Close()
 		}
 	}()
 
-	s = &Service{cache: make(map[int64]powermeter.Measurement)}
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-	if s.db, err = sqlitex.Open(file, 0, 10); err != nil {
-		return s, err
+	if db.DB, err = sqlx.Open("sqlite", db.dsn); err != nil {
+		return err
 	}
 
-	// Create/update the database schema
-	if err = s.initDDL(); err != nil {
-		return s, err
-	}
-
-	// Load cache information
-	if err = s.loadCache(); err != nil {
-		return s, err
-	}
-
-	s.startCacheWorker()
-	return s, err
-}
-
-// Close releases the database resources.
-func (s *Service) Close() error {
-	defer s.db.Close()
-
-	err := s.saveCache()
+	// Enable WAL, foreign key checks and set busy timeout.
+	_, err = db.Exec(`PRAGMA journal_mode=wal;
+		PRAGMA foreign_keys=ON;
+		PRAGMA busy_timeout=5000;`)
 	if err != nil {
-		log.Printf("cache: %v", err)
+		return fmt.Errorf("error: configuring the database: %w", err)
 	}
 
-	s.cancel()
-	return err
+	if err := migrateSchema(db); err != nil {
+		return err
+	}
+
+	if err := db.loadCache(); err != nil {
+		return err
+	}
+
+	db.startCacheWorker()
+	return nil
 }
 
-func (s *Service) Insert(measurements []powermeter.Measurement) (err error) {
-	conn := s.db.Get(context.Background())
-	defer s.db.Put(conn)
-	defer sqlitex.Save(conn)(&err)
+func (db *Database) Close() error {
+	db.cancel()
+	if db.DB == nil {
+		return nil
+	}
 
-	insert := `insert into
+	err := db.saveCache()
+	if err != nil {
+		log.Printf("cache error: %v", err)
+	}
+
+	return db.DB.Close()
+}
+
+func (db *Database) Transaction(ctx context.Context, fn func(context.Context, *sqlx.Tx) error) error {
+	tx, err := db.BeginTxx(ctx, &sql.TxOptions{ReadOnly: false})
+	if err != nil {
+		return err
+	}
+
+	if err = fn(ctx, tx); err != nil {
+		return errors.Join(tx.Rollback(), err)
+	}
+
+	return tx.Commit()
+}
+
+func (db *Database) Insert(ctx context.Context, tx *sqlx.Tx, measurements []powermeter.Measurement) error {
+	stmt := `insert into
 		power(meter_id, year, month, day, seconds, consumption)
 		values (?, ?, ?, ?, ?, ?)`
 
 	for _, m := range measurements {
-		m.Consumption = s.adjustConsumption(m)
+		m.Consumption = db.adjustConsumption(m)
 		if m.Consumption == 0 {
 			continue
 		}
 
-		err = sqlitex.Exec(
-			conn,
-			insert,
-			nil,
+		_, err := tx.ExecContext(ctx, stmt,
 			m.MeterID,
 			m.Time.Year(),
 			m.Time.Month(),
@@ -105,102 +134,5 @@ func (s *Service) Insert(measurements []powermeter.Measurement) (err error) {
 		}
 	}
 
-	return err
-}
-
-var fields []string
-var where []string
-var groupBy []string
-
-func init() {
-	fields = make([]string, 4)
-	fields[0] = ""
-	fields[1] = ", month"
-	fields[2] = fields[1] + ", day"
-	fields[3] = fields[2] + ", (seconds / 3600) as hour"
-
-	where = make([]string, 4)
-	where[0] = ""
-	where[1] = " and year=$2"
-	where[2] = where[1] + " and month=$3"
-	where[3] = where[2] + " and day=$4"
-
-	groupBy = make([]string, 4)
-	groupBy[0] = ""
-	groupBy[1] = ", month"
-	groupBy[2] = groupBy[1] + ", day"
-	groupBy[3] = groupBy[2] + ", hour"
-}
-
-func (s *Service) Summary(details bool, args ...int) (interface{}, error) {
-	conn := s.db.Get(context.Background())
-	defer s.db.Put(conn)
-
-	n := len(args)
-	var query string
-	if details {
-		query = `select
-			meter_id, consumption, year, month, day, seconds
-		from
-			power
-		where
-			meter_id = $1 ` + where[n]
-	} else {
-		query = `select
-			meter_id, sum(consumption) as consumption, year ` + fields[n] + `
-		from
-			power
-		where
-			meter_id = $1 ` + where[n] + `
-		group by
-			meter_id, year ` + groupBy[n]
-	}
-
-	stmt, err := conn.Prepare(query)
-	if err != nil {
-		return nil, err
-	}
-	stmt.SetInt64("$1", homeMeterID)
-	for i, a := range args {
-		stmt.SetInt64(fmt.Sprintf("$%d", i+2), int64(a))
-	}
-
-	var hasRow bool
-	var measurements = make([]powerJson, 0, 100)
-	for {
-		if hasRow, err = stmt.Step(); err != nil {
-			return nil, err
-		}
-
-		if !hasRow {
-			break
-		}
-
-		var u powerJson
-		u.Consumption = stmt.GetInt64("consumption")
-		u.MeterID = stmt.GetInt64("meter_id")
-		u.Year = int(stmt.GetInt64("year"))
-		u.Month = int(stmt.GetInt64("month"))
-		u.Day = int(stmt.GetInt64("day"))
-		if details {
-			var t int = int(stmt.GetInt64("seconds"))
-			u.Seconds = &t
-		} else if n >= 3 {
-			var t int = int(stmt.GetInt64("hour"))
-			u.Hour = &t
-		}
-		measurements = append(measurements, u)
-	}
-
-	return measurements, nil
-}
-
-type powerJson struct {
-	Consumption int64 `json:"consumption"`
-	MeterID     int64 `json:"meter"`
-	Year        int   `json:"year"`
-	Month       int   `json:"month,omitempty"`
-	Day         int   `json:"day,omitempty"`
-	Seconds     *int  `json:"seconds,omitempty"`
-	Hour        *int  `json:"hour,omitempty"`
+	return nil
 }
