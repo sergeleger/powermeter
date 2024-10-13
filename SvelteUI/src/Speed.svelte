@@ -4,12 +4,12 @@
 
 	let refreshRateInMS: number = 60_000;
 
-	let timer: NodeJS.Timeout;
+	let timer: ReturnType<typeof setTimeout>;
 	let speed: number = 0;
 
 	onMount(async () => {
 		fetchSpeed();
-		timer = setInterval(() => fetchSpeed(), refreshRateInMS);
+		timer = setInterval(fetchSpeed, refreshRateInMS);
 	});
 	onDestroy(() => clearInterval(timer));
 
@@ -19,23 +19,26 @@
 		const m: number = today.getMonth() + 1;
 		const d: number = today.getDate();
 
-		// @ts-ignore: SERVICE_URL is included in rollup build.
-		const url = SERVICE_URL + `/${y}/${m}/${d}?details=true`;
+		const url = `/api/${y}/${m}/${d}?details=true`;
 		const resp = await fetch(url);
 		const usage: PowerDetail[] = await resp.json();
 
-		const n = usage.length;
-		if (n === 0) {
-			speed = 0;
-		}
-
+		const n = usage?.length ?? 0;
 		let start = 0;
 		let end = 0;
-		if (n === 1) {
-			end = usage[0].seconds;
-		} else if (n > 1) {
-			start = usage[n - 2].seconds;
-			end = usage[n - 1].seconds;
+		switch (true) {
+			case n === 0:
+				speed = 0;
+				return;
+
+			case n === 1:
+				end = usage[0].seconds;
+				break;
+
+			case n > 1:
+				start = usage[n - 2].seconds;
+				end = usage[n - 1].seconds;
+				break;
 		}
 
 		let delta = end - start;

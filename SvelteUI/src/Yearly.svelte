@@ -11,11 +11,12 @@
 		PointElement,
 		LineElement,
 		Legend,
+		type Color,
 	} from "chart.js";
 	import type { ChartDataset } from "chart.js";
 	import { onMount } from "svelte";
 	import type { PowerSummary } from "./powersummary";
-	import PowerMeter from "./PowerMeter.svelte";
+	import { interpolateSinebow } from "d3-scale-chromatic";
 
 	Chart.register(
 		LinearScale,
@@ -33,19 +34,7 @@
 	let ctx: HTMLCanvasElement;
 	let chart: Chart;
 
-	const colors = [
-		"rgba(255, 99, 132, 0.5)",
-		"rgba(54, 162, 235, 0.5)",
-		"rgba(255, 206, 86, 0.5)",
-		"rgba(75, 192, 192, 0.5)",
-		"rgba(153, 102, 255, 0.5)",
-		"rgba(255, 159, 64, 0.5)",
-	];
-
 	onMount(async () => {
-		// @ts-ignore: SERVICE_URL is included in rollup build.
-		const serviceURL = SERVICE_URL;
-
 		chart = new Chart(ctx, {
 			type: "bar",
 			data: {
@@ -63,20 +52,27 @@
 			},
 		});
 
-		const years: PowerSummary[] = await fetch(serviceURL).then(async (r) => r.json());
+		const years: PowerSummary[] = await fetch("/api").then(async (r) => r.json());
 
 		var yearDetail = await Promise.all(
-			years.map((y) => fetch(serviceURL + `/${y.year}`).then((response) => response.json()))
+			years.map((y) => fetch(`/api/${y.year}`).then((response) => response.json()))
 		);
 
 		yearDetail.map((usage, i) => {
+			const color: Color = colorWithAlpha(
+				parseRGB(interpolateSinebow(i / yearDetail.length)),
+				0.75
+			);
+
 			const dataset: ChartDataset<"bar", number[]> = {
 				data: new Array<number>(12),
-				backgroundColor: colors[i % colors.length],
+				backgroundColor: color,
 				label: `${usage[0].year}`,
 			};
 
-			dataset.data = usage.map((u) => (dataset.data[u.month - 1] = u.consumption));
+			dataset.data = usage.map(
+				(u: PowerSummary) => (dataset.data[u.month! - 1] = u.consumption)
+			);
 
 			chart.data.datasets.push(dataset);
 		});
@@ -98,6 +94,19 @@
 
 		chart.update();
 	});
+
+	// Converts RGB string to R,G,B components.
+	function parseRGB(color: string): number[] {
+		return color
+			.replace(/[^\d,]/g, "")
+			.split(",")
+			.map((c) => parseInt(c));
+	}
+
+	// Adds transparency to the RGB color.
+	function colorWithAlpha(rgb: number[], alpha: number): Color {
+		return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+	}
 </script>
 
 <canvas bind:this={ctx} />
