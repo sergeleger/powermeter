@@ -27,10 +27,27 @@ var ServeCommand = cli.Command{
 	Usage:  "start the PowerMeter server",
 	Action: serveAction,
 	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "db", Value: "power.db", Usage: "SQLite file", Required: true},
-		&cli.StringFlag{Name: "http", Usage: "start HTTP service at `addr`ess. (example: localhost:8088)"},
-		&cli.Int64Flag{Name: "meter", Usage: "Accept only `meter_id` measurements.", EnvVars: []string{"POWERMETER_FILTER"}},
-		&cli.StringFlag{Name: "html", Usage: "HTML content directory"},
+		&cli.StringFlag{
+			Name:     "db",
+			Value:    "power.db",
+			Usage:    "SQLite file",
+			EnvVars:  []string{"POWERMETER_DATABASE"},
+			Required: true,
+		},
+		&cli.StringFlag{
+			Name:  "http",
+			Usage: "start HTTP service at `addr`ess. (example: localhost:8088)",
+		},
+		&cli.Int64Flag{
+			Name:     "meter",
+			Usage:    "Accept only `meter_id` measurements.",
+			EnvVars:  []string{"POWERMETER_METER"},
+			Required: true,
+		},
+		&cli.StringFlag{
+			Name:  "html",
+			Usage: "HTML content directory",
+		},
 	},
 }
 
