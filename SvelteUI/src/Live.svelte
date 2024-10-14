@@ -59,8 +59,7 @@
 
 	async function fetchPower() {
 		// fetch Power entries
-		//const today: Date = new Date();
-		const today: Date = new Date(2024, 6, 1);
+		const today: Date = new Date();
 
 		// fetch 3 days worth of data to ensure we are able to get 48 entries
 		const queries: Promise<PowerDetail[]>[] = [];

@@ -16,7 +16,7 @@ export const consumptionPlugin: Plugin<"bar", {}> = {
 	id: "consumption_plugin",
 
 	afterDatasetDraw: function (chart, args, options) {
-		if (args.index != 0) {
+		if (args.index !== 0 || (args.index === 0 && args.meta.hidden)) {
 			return;
 		}
 
@@ -41,12 +41,13 @@ function drawTimeScale(chart: Chart<"bar">, bar: BarElement, dp: DataPoint) {
 
 	chart.ctx.save();
 	chart.ctx.lineWidth = 2;
-	chart.ctx.strokeStyle = "rgba(0, 128, 0, 1)"; //"rgba(101, 101, 101, 0.75)";
+	chart.ctx.strokeStyle = "rgba(0, 128, 0, 1)";
 	chart.ctx.shadowOffsetX = 1;
 	chart.ctx.shadowOffsetY = 1;
 	chart.ctx.shadowColor = "rgba(255, 255, 255, 0.75)";
 
-	for (let i = 15; i < 60; i += 15) {
+	const ticks = 15;
+	for (let i = ticks; i < 60; i += ticks) {
 		const y = yAxis.getPixelForValue((i / 60) * dp.value);
 
 		chart.ctx.beginPath();
