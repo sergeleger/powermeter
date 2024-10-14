@@ -16,7 +16,7 @@
 	import type { ChartDataset } from "chart.js";
 	import { onMount } from "svelte";
 	import type { PowerSummary } from "./powersummary";
-	import { interpolateSinebow } from "d3-scale-chromatic";
+	import { interpolateSinebow as colorFn } from "d3-scale-chromatic";
 
 	Chart.register(
 		LinearScale,
@@ -59,10 +59,7 @@
 		);
 
 		yearDetail.map((usage, i) => {
-			const color: Color = colorWithAlpha(
-				parseRGB(interpolateSinebow(i / yearDetail.length)),
-				0.75
-			);
+			const color: Color = colorWithAlpha(parseRGB(colorFn(i / yearDetail.length)), 0.75);
 
 			const dataset: ChartDataset<"bar", number[]> = {
 				data: new Array<number>(12),

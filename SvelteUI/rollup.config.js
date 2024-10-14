@@ -3,17 +3,12 @@ import commonjs from "@rollup/plugin-commonjs";
 import resolve from "@rollup/plugin-node-resolve";
 import livereload from "rollup-plugin-livereload";
 import terser from "@rollup/plugin-terser";
-import sveltePreprocess from "svelte-preprocess";
+import { sveltePreprocess } from "svelte-preprocess";
 import typescript from "@rollup/plugin-typescript";
 import css from "rollup-plugin-css-only";
-import replace from "@rollup/plugin-replace";
+import { spawn } from "child_process";
 
 const production = !process.env.ROLLUP_WATCH;
-
-let serviceURL = "http://192.168.2.16:5000/api";
-if (production) {
-	serviceURL = "/api";
-}
 
 function serve() {
 	let server;
@@ -25,7 +20,7 @@ function serve() {
 	return {
 		writeBundle() {
 			if (server) return;
-			server = require("child_process").spawn("npm", ["run", "start", "--", "--dev"], {
+			server = spawn("npm", ["run", "start", "--", "--dev"], {
 				stdio: ["ignore", "inherit", "inherit"],
 				shell: true,
 			});
@@ -69,11 +64,6 @@ export default {
 		typescript({
 			sourceMap: !production,
 			inlineSources: !production,
-		}),
-
-		replace({
-			SERVICE_URL: JSON.stringify(serviceURL),
-			preventAssignment: true,
 		}),
 
 		// In dev mode, call `npm run start` once
